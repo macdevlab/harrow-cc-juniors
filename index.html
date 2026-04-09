@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harrow Town CC – Juniors Attendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0d1b2a; --navy-mid: #1a2e42; --navy-light: #243d55;
+    --gold: #e8b84b; --gold-light: #f5d07a; --cream: #f7f3ec; --white: #ffffff;
+    --green: #2ecc71; --absent: #64748b; --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--navy); color: var(--cream); min-height: 100vh; }
+
+  header { background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 100%); border-bottom: 3px solid var(--gold); padding: 16px 24px; position: sticky; top: 0; z-index: 100; }
+  .header-inner { max-width: 900px; margin: 0 auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .club-badge { width: 52px; height: 52px; background: var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--navy); flex-shrink: 0; box-shadow: 0 0 0 3px var(--navy-mid), 0 0 0 5px var(--gold); }
+  .header-text h1 { font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: 2px; color: var(--gold); line-height: 1; }
+  .header-text p { font-size: 11px; color: var(--cream); opacity: 0.7; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+  .session-picker { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .session-picker label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--cream); opacity: 0.5; }
+  .session-picker select { background: var(--navy-light); border: 1px solid rgba(232,184,75,0.4); border-radius: 7px; color: var(--gold); font-family: 'Bebas Neue', sans-serif; font-size: 15px; padding: 6px 10px; cursor: pointer; outline: none; letter-spacing: 1px; }
+
+  .stats-bar { background: var(--navy-mid); border-bottom: 1px solid rgba(232,184,75,0.2); padding: 10px 24px; }
+  .stats-inner { max-width: 900px; margin: 0 auto; display: flex; gap: 20px; flex-wrap: wrap; }
+  .stat { display: flex; align-items: center; gap: 7px; }
+  .stat-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .stat-dot.present { background: var(--green); } .stat-dot.absent { background: var(--absent); } .stat-dot.total { background: var(--gold); } .stat-dot.walkin { background: #a78bfa; }
+  .stat-label { font-size: 12px; opacity: 0.65; } .stat-value { font-size: 14px; font-weight: 600; }
+
+  .tabs-bar { background: var(--navy-mid); border-bottom: 1px solid rgba(232,184,75,0.15); padding: 0 24px; }
+  .tabs-inner { max-width: 900px; margin: 0 auto; display: flex; gap: 2px; overflow-x: auto; }
+  .tab-btn { background: none; border: none; padding: 9px 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: rgba(247,243,236,0.4); border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.2s; }
+  .tab-btn:hover { color: var(--cream); } .tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+  main { max-width: 900px; margin: 0 auto; padding: 20px 16px 80px; }
+  .section-title { font-family: 'Bebas Neue', sans-serif; font-size: 16px; letter-spacing: 2px; color: var(--gold); margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: rgba(232,184,75,0.2); }
+
+  .search-box { position: relative; margin-bottom: 14px; }
+  .search-box input { width: 100%; background: var(--navy-mid); border: 1px solid rgba(232,184,75,0.2); border-radius: var(--radius); padding: 9px 14px 9px 36px; color: var(--cream); font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; transition: border-color 0.2s; }
+  .search-box input:focus { border-color: var(--gold); } .search-box input::placeholder { color: rgba(247,243,236,0.3); }
+  .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); opacity: 0.35; font-size: 14px; }
+
+  .player-list { display: flex; flex-direction: column; gap: 7px; margin-bottom: 28px; }
+  .player-card-wrap { display: flex; flex-direction: column; }
+  .player-card { background: var(--navy-mid); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius); padding: 12px 14px; display: flex; align-items: center; gap: 12px; transition: border-color 0.2s; }
+  .player-card.present { border-color: rgba(46,204,113,0.35); background: rgba(46,204,113,0.07); }
+  .player-card.absent { opacity: 0.72; }
+  .player-card.has-detail { border-radius: var(--radius) var(--radius) 0 0; }
+  .player-number { font-family: 'Bebas Neue', sans-serif; font-size: 13px; color: var(--gold); width: 20px; text-align: right; flex-shrink: 0; opacity: 0.5; }
+  .status-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .status-icon.present { background: rgba(46,204,113,0.18); } .status-icon.absent { background: rgba(100,116,139,0.12); }
+  .player-info { flex: 1; min-width: 0; }
+  .player-name { font-weight: 600; font-size: 14px; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .player-meta { font-size: 11px; color: var(--cream); opacity: 0.45; margin-top: 1px; }
+  .walkin-badge { font-size: 9px; background: #a78bfa; color: var(--navy); padding: 1px 5px; border-radius: 3px; font-weight: 700; letter-spacing: 0.5px; margin-left: 5px; }
+  .expand-btn { background: none; border: none; cursor: pointer; color: rgba(232,184,75,0.45); font-size: 11px; flex-shrink: 0; padding: 4px; transition: color 0.2s; }
+  .expand-btn:hover { color: var(--gold); }
+  .attendance-btn { flex-shrink: 0; width: 96px; padding: 6px 0; border-radius: 6px; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; transition: all 0.15s; }
+  .attendance-btn.mark-present { background: rgba(46,204,113,0.13); color: var(--green); border: 1px solid rgba(46,204,113,0.25); }
+  .attendance-btn.mark-present:hover { background: var(--green); color: var(--navy); }
+  .attendance-btn.mark-absent { background: rgba(100,116,139,0.12); color: #94a3b8; border: 1px solid rgba(100,116,139,0.18); }
+  .attendance-btn.mark-absent:hover { background: rgba(100,116,139,0.28); }
+
+  .detail-panel { display: none; background: rgba(0,0,0,0.25); border: 1px solid rgba(232,184,75,0.12); border-top: none; border-radius: 0 0 var(--radius) var(--radius); padding: 10px 16px; }
+  .detail-panel.open { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 16px; }
+  .detail-item strong { color: var(--gold); opacity: 0.85; display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 1px; }
+  .detail-item { font-size: 12px; color: var(--cream); opacity: 0.75; }
+
+  .walkin-section { background: var(--navy-mid); border: 1px solid rgba(232,184,75,0.2); border-radius: var(--radius); overflow: hidden; }
+  .walkin-toggle { width: 100%; background: none; border: none; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: var(--cream); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; transition: background 0.2s; }
+  .walkin-toggle:hover { background: rgba(232,184,75,0.04); }
+  .toggle-arrow { font-size: 13px; color: var(--gold); transition: transform 0.25s; }
+  .toggle-arrow.open { transform: rotate(180deg); }
+  .walkin-form { display: none; padding: 0 18px 18px; flex-direction: column; gap: 11px; }
+  .walkin-form.open { display: flex; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gold); opacity: 0.8; }
+  .form-group input, .form-group textarea { background: var(--navy-light); border: 1px solid rgba(232,184,75,0.18); border-radius: 7px; padding: 8px 11px; color: var(--cream); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; transition: border-color 0.2s; width: 100%; }
+  .form-group input:focus, .form-group textarea:focus { border-color: var(--gold); }
+  .form-group input::placeholder, .form-group textarea::placeholder { color: rgba(247,243,236,0.22); }
+  .form-group textarea { resize: vertical; min-height: 56px; }
+  .add-btn { background: var(--gold); color: var(--navy); border: none; border-radius: 7px; padding: 10px 18px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.15s, transform 0.1s; align-self: flex-start; }
+  .add-btn:hover { background: var(--gold-light); } .add-btn:active { transform: scale(0.97); }
+
+  .toast { position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%) translateY(60px); background: var(--navy-light); border: 1px solid var(--gold); color: var(--cream); padding: 9px 18px; border-radius: 30px; font-size: 13px; font-weight: 500; opacity: 0; transition: all 0.3s; z-index: 999; white-space: nowrap; }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  .export-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--navy-mid); border-top: 1px solid rgba(232,184,75,0.2); padding: 10px 24px; display: flex; justify-content: center; gap: 10px; z-index: 100; }
+  .export-btn { background: var(--navy-light); border: 1px solid rgba(232,184,75,0.3); color: var(--gold); padding: 8px 16px; border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .export-btn:hover { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+  .no-results { text-align: center; padding: 28px; color: rgba(247,243,236,0.3); font-size: 13px; }
+
+  @media (max-width: 520px) {
+    .form-row { grid-template-columns: 1fr; }
+    .header-text h1 { font-size: 20px; }
+    .attendance-btn { width: 76px; font-size: 11px; }
+  }
+  @media print {
+    header { position: static; }
+    .export-bar, .search-box, .attendance-btn, .walkin-section, .tabs-bar, .expand-btn { display: none !important; }
+    body { background: white; color: black; }
+    .player-card { background: white !important; border: 1px solid #ccc !important; opacity: 1 !important; border-radius: var(--radius) !important; }
+    .player-name { color: black !important; } .player-meta { opacity: 1 !important; color: #555 !important; }
+    .stats-bar { background: #f0f0f0 !important; border: none !important; } .stat-label, .stat-value { color: black !important; }
+    header { background: white !important; border-bottom: 2px solid black !important; }
+    .header-text h1 { color: black !important; } .club-badge { background: black !important; color: white !important; box-shadow: none !important; }
+    .detail-panel.open { background: #f9f9f9 !important; border-color: #ddd !important; }
+    .detail-item { color: black !important; opacity: 1 !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="club-badge">HCC</div>
+    <div class="header-text">
+      <h1>Harrow Town CC</h1>
+      <p>Juniors Coaching — Attendance Register 2026</p>
+    </div>
+    <div class="session-picker">
+      <label>Session</label>
+      <select id="session-select" onchange="changeSession()"></select>
+    </div>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <div class="stats-inner">
+    <div class="stat"><div class="stat-dot total"></div><span class="stat-label">Registered:</span><span class="stat-value" id="stat-total">0</span></div>
+    <div class="stat"><div class="stat-dot present"></div><span class="stat-label">Present:</span><span class="stat-value" id="stat-present">0</span></div>
+    <div class="stat"><div class="stat-dot absent"></div><span class="stat-label">Absent:</span><span class="stat-value" id="stat-absent">0</span></div>
+    <div class="stat"><div class="stat-dot walkin"></div><span class="stat-label">Walk-ins:</span><span class="stat-value" id="stat-walkins">0</span></div>
+  </div>
+</div>
+
+<div class="tabs-bar">
+  <div class="tabs-inner" id="group-tabs"></div>
+</div>
+
+<main>
+  <div class="section-title">Players</div>
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search-input" placeholder="Search by name…" oninput="renderList()">
+  </div>
+  <div class="player-list" id="player-list"></div>
+
+  <div class="section-title">Walk-In Player</div>
+  <div class="walkin-section">
+    <button class="walkin-toggle" onclick="toggleWalkin()">
+      <span>➕ Add Walk-In Player</span>
+      <span class="toggle-arrow" id="toggle-arrow">▼</span>
+    </button>
+    <div class="walkin-form" id="walkin-form">
+      <div class="form-row">
+        <div class="form-group"><label>Full Name *</label><input type="text" id="wi-name" placeholder="First & last name"></div>
+        <div class="form-group"><label>Date of Birth</label><input type="date" id="wi-dob"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>School Year</label><input type="text" id="wi-year" placeholder="e.g. Year 5"></div>
+        <div class="form-group"><label>Parent / Guardian Name</label><input type="text" id="wi-parent" placeholder="Full name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Parent Contact Number</label><input type="tel" id="wi-parent-tel" placeholder="Phone number"></div>
+        <div class="form-group"><label>Parent Email</label><input type="email" id="wi-parent-email" placeholder="Email address"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Emergency Contact Name</label><input type="text" id="wi-emergency-name" placeholder="If different from above"></div>
+        <div class="form-group"><label>Emergency Contact Number</label><input type="tel" id="wi-emergency-tel" placeholder="Phone number"></div>
+      </div>
+      <div class="form-group"><label>Medical Notes / Conditions</label><textarea id="wi-medical" placeholder="Allergies, injuries, medications or any relevant notes…"></textarea></div>
+      <button class="add-btn" onclick="addWalkin()">Add &amp; Mark Present</button>
+    </div>
+  </div>
+</main>
+
+<div class="export-bar">
+  <button class="export-btn" onclick="window.print()">🖨️ Print</button>
+  <button class="export-btn" onclick="exportCSV()">⬇️ Export CSV</button>
+  <button class="export-btn" onclick="resetSession()">🔄 Reset Session</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SESSIONS = [
+  "12 Apr 2026","19 Apr 2026","26 Apr 2026","03 May 2026","10 May 2026",
+  "17 May 2026","24 May 2026","31 May 2026","07 Jun 2026","14 Jun 2026",
+  "21 Jun 2026","28 Jun 2026","05 Jul 2026","12 Jul 2026"
+];
+
+const PLAYERS = [
+  {id:1,  name:"Vivan Pandya",            dob:"08/07/2018",year:"Year 3",   parent:"Khushboo Pandya",            parentTel:"07553 342075",parentEmail:"Khushboopandya90@gmail.com",      emergency:"",emergencyTel:"",medical:""},
+  {id:2,  name:"Muhammad Rayaan Qayyum",  dob:"07/06/2013",year:"Year 8",   parent:"Muhammad Samar Qayyum",      parentTel:"07857126707", parentEmail:"Samar_duaa@yahoo.com",            emergency:"",emergencyTel:"",medical:""},
+  {id:3,  name:"Freddie Thompson",        dob:"13/06/2012",year:"Year 9",   parent:"Steve Thompson",             parentTel:"07703009359", parentEmail:"stevegthompson@me.com",           emergency:"",emergencyTel:"",medical:""},
+  {id:4,  name:"Vedansh Parmar",          dob:"08/02/2014",year:"Year 7",   parent:"Tushar Parmar",              parentTel:"07407850463", parentEmail:"Parmartushars@gmail.com",         emergency:"",emergencyTel:"",medical:""},
+  {id:5,  name:"Aaryadit Parmar",         dob:"24/12/2020",year:"Reception",parent:"Tushar Parmar",              parentTel:"07407850463", parentEmail:"Parmartushars@gmail.com",         emergency:"",emergencyTel:"",medical:""},
+  {id:6,  name:"Shivansh Patel",          dob:"30/10/2017",year:"Year 8",   parent:"Himalkumar Patel",           parentTel:"07543622666", parentEmail:"himalnote3@gmail.com",            emergency:"",emergencyTel:"",medical:""},
+  {id:7,  name:"Heet Sandipkumar Patel",  dob:"07/05/2014",year:"Year 7",   parent:"Sandipkumar Suryakant Patel",parentTel:"07393107752", parentEmail:"sandip.patel92@yahoo.com",        emergency:"",emergencyTel:"",medical:""},
+  {id:8,  name:"Avi Patel",               dob:"26/08/2013",year:"Year 8",   parent:"Kinjalkumar Patel",          parentTel:"07500068933", parentEmail:"patell.kinjal25@gmail.com",       emergency:"",emergencyTel:"",medical:""},
+  {id:9,  name:"Aarav Patel",             dob:"29/05/2011",year:"Year 10",  parent:"Geetaben Jignesh Patel",     parentTel:"07438639601", parentEmail:"aaravpatel2905@gmail.com",        emergency:"",emergencyTel:"",medical:""},
+  {id:10, name:"Muhammad Hussain",        dob:"21/07/2019",year:"Year 2",   parent:"Asif Husaain",               parentTel:"07340665770", parentEmail:"asif12389@gmail.com",             emergency:"",emergencyTel:"",medical:""},
+  {id:11, name:"Jainil",                  dob:"27/10/2017",year:"Year 3",   parent:"Chandresh",                  parentTel:"07888346645", parentEmail:"Chandreshgoklani@gmail.com",      emergency:"",emergencyTel:"",medical:""},
+  {id:12, name:"Oscar Remedios",          dob:"22/05/2020",year:"Year 1",   parent:"Jason Remedios",             parentTel:"07979149663", parentEmail:"jason.remedios99@gmail.com",      emergency:"",emergencyTel:"",medical:""},
+  {id:13, name:"Arsalaan Raza",           dob:"02/02/2012",year:"Year 9",   parent:"Zaira Rizvi",                parentTel:"07466603348", parentEmail:"zairasraza@gmail.com",            emergency:"",emergencyTel:"",medical:""},
+  {id:14, name:"Syed Mustafa",            dob:"20/09/2017",year:"Year 3",   parent:"Fahim Ali",                  parentTel:"07897279575", parentEmail:"fahim_gravity@hotmail.com",       emergency:"",emergencyTel:"",medical:""},
+  {id:15, name:"Jemish Jitendra",         dob:"03/12/2011",year:"Year 9",   parent:"Jitendra Quessava",          parentTel:"07928762368", parentEmail:"jquessava@gmail.com",             emergency:"",emergencyTel:"",medical:""},
+  {id:16, name:"Agamveer Singh",          dob:"03/04/2019",year:"Year 2",   parent:"Navneet Kaur",               parentTel:"07463045601", parentEmail:"neetukaur018@gmail.com",          emergency:"",emergencyTel:"",medical:""},
+  {id:17, name:"Shubhman Gosalia",        dob:"12/03/2021",year:"Reception",parent:"Bijal Shah",                 parentTel:"07341847076", parentEmail:"bijalsh25@gmail.com",             emergency:"",emergencyTel:"",medical:""},
+  {id:18, name:"Dev Pandya",              dob:"01/07/2013",year:"Year 8",   parent:"Shailesh Pandya",            parentTel:"07930193834", parentEmail:"spandya@hotmail.co.uk",           emergency:"",emergencyTel:"",medical:""},
+  {id:19, name:"Sneh Patel",              dob:"06/10/2014",year:"Year 6",   parent:"Bhavikkumar Patel",          parentTel:"07949728754", parentEmail:"bhavikpatel76802@yahoo.com",      emergency:"",emergencyTel:"",medical:""},
+  {id:20, name:"Ethan Tauro",             dob:"16/02/2013",year:"Year 8",   parent:"Natasha Tauro",              parentTel:"07794135667", parentEmail:"natashalobo2310@gmail.com",       emergency:"",emergencyTel:"",medical:""},
+  {id:21, name:"Aayaan Patel",            dob:"09/03/2020",year:"Year 1",   parent:"Kalpeshkumar Patel",         parentTel:"07920038457", parentEmail:"mydreamzmyaim@gmail.com",         emergency:"",emergencyTel:"",medical:""},
+  {id:22, name:"Hardhik Pulluru",         dob:"15/09/2017",year:"Year 3",   parent:"Yeshwanth Pulluru",          parentTel:"07887175143", parentEmail:"yeshpulluru@gmail.com",           emergency:"",emergencyTel:"",medical:""},
+  {id:23, name:"Shivam Shah",             dob:"24/04/2016",year:"Year 5",   parent:"Pranav Shah",                parentTel:"07898194688", parentEmail:"pranav143shah@gmail.com",         emergency:"",emergencyTel:"",medical:""},
+  {id:24, name:"Viyaan Shah",             dob:"01/03/2020",year:"Year 1",   parent:"Pranav Shah",                parentTel:"07898194688", parentEmail:"pranav143shah@gmail.com",         emergency:"",emergencyTel:"",medical:""},
+  {id:25, name:"Devik Dipesh Modha",      dob:"07/08/2012",year:"Year 9",   parent:"Dipesh Modha",               parentTel:"07791844111", parentEmail:"Dipesh_modha@yahoo.co.uk",        emergency:"",emergencyTel:"",medical:""},
+  {id:26, name:"Tejashwin Sathishkumar", dob:"19/01/2020",year:"Year 1",   parent:"Sathishkumar Munirathinam",  parentTel:"07909574700", parentEmail:"",                               emergency:"",emergencyTel:"",medical:""},
+  {id:27, name:"Dhairy Patel",            dob:"30/01/2011",year:"Year 10",  parent:"Shankarlal Patel",           parentTel:"07448442196", parentEmail:"dhairyp037@gmail.com",            emergency:"",emergencyTel:"",medical:""},
+  {id:28, name:"Vishnu Karthikeyan",      dob:"03/08/2015",year:"Year 6",   parent:"Karthikeyan Gurumoorthy",    parentTel:"07825656292", parentEmail:"karthikeyan.gurumoorthy@gmail.com",emergency:"",emergencyTel:"",medical:""},
+  {id:29, name:"Muhaymin Mohammed",       dob:"15/04/2017",year:"Year 4",   parent:"Shahzeb Mohammed",           parentTel:"07884187040", parentEmail:"shahzeb.mohammed@gmail.com",      emergency:"",emergencyTel:"",medical:""},
+];
+
+const YEAR_ORDER = ["Reception","Year 1","Year 2","Year 3","Year 4","Year 5","Year 6","Year 7","Year 8","Year 9","Year 10"];
+const attendance = Array.from({length:14}, () => ({}));
+PLAYERS.forEach(p => attendance.forEach(s => s[p.id] = 'absent'));
+
+let walkins = [], nextWalkinId = 1000, currentSession = 0, currentGroup = 'All', expandedCards = new Set();
+
+// Build session dropdown — auto-select today's session if applicable
+const sel = document.getElementById('session-select');
+const today = new Date();
+SESSIONS.forEach((s,i) => {
+  const opt = document.createElement('option');
+  opt.value = i;
+  opt.textContent = `Session ${i+1} — ${s}`;
+  sel.appendChild(opt);
+  // Auto-select if this session's date matches today
+  const [d,m,y] = s.split(' ');
+  const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  if(new Date(parseInt(y), months[m], parseInt(d)).toDateString() === today.toDateString()) {
+    currentSession = i; sel.value = i;
+  }
+});
+
+buildTabs(); renderList();
+
+function changeSession() { currentSession = parseInt(sel.value); expandedCards.clear(); renderList(); }
+
+function buildTabs() {
+  const groups = ['All', ...YEAR_ORDER.filter(y => PLAYERS.some(p => p.year === y))];
+  document.getElementById('group-tabs').innerHTML = groups.map(g =>
+    `<button class="tab-btn ${g===currentGroup?'active':''}" onclick="setGroup('${g}')">${g}</button>`
+  ).join('');
+}
+
+function setGroup(g) { currentGroup = g; buildTabs(); renderList(); }
+
+function calcAge(dob) {
+  if (!dob) return '';
+  const [d, m, y] = dob.split('/');
+  const birth = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  if (now < new Date(now.getFullYear(), birth.getMonth(), birth.getDate())) age--;
+  return age;
+}
+
+function renderList() {
+  const container = document.getElementById('player-list');
+  const filter = document.getElementById('search-input').value.toLowerCase();
+  let players = currentGroup === 'All' ? [...PLAYERS] : PLAYERS.filter(p => p.year === currentGroup);
+  if(filter) players = players.filter(p => p.name.toLowerCase().includes(filter));
+  const sessionWalkins = walkins.filter(w => w.sessionIdx === currentSession);
+  const all = [...players, ...sessionWalkins];
+
+  if(!all.length) { container.innerHTML = '<div class="no-results">No players found</div>'; updateStats(); return; }
+
+  container.innerHTML = all.map((p,i) => {
+    const status = attendance[currentSession][p.id] || 'absent';
+    const exp = expandedCards.has(p.id);
+    return `<div class="player-card-wrap">
+      <div class="player-card ${status}${exp?' has-detail':''}" id="card-${p.id}">
+        <div class="player-number">${i+1}</div>
+        <div class="status-icon ${status}">${status==='present'?'✅':'⚪'}</div>
+        <div class="player-info">
+          <div class="player-name">${p.name}${p.walkin?'<span class="walkin-badge">WALK-IN</span>':''}</div>
+          <div class="player-meta">Age: ${calcAge(p.dob)||'—'} · ${p.parent||''}</div>
+        </div>
+        <button class="expand-btn" onclick="toggleExpand(${p.id})" title="View details">${exp?'▲':'▼'}</button>
+        ${status==='absent'
+          ? `<button class="attendance-btn mark-present" onclick="mark(${p.id},'present')">Mark Present</button>`
+          : `<button class="attendance-btn mark-absent"  onclick="mark(${p.id},'absent')">Mark Absent</button>`}
+      </div>
+      <div class="detail-panel ${exp?'open':''}" id="detail-${p.id}">
+        <div class="detail-item"><strong>Age</strong>${calcAge(p.dob)||'—'}</div>
+        <div class="detail-item"><strong>Date of Birth</strong>${p.dob||'—'}</div>
+        <div class="detail-item"><strong>Parent / Guardian</strong>${p.parent||'—'}</div>
+        <div class="detail-item"><strong>Contact Number</strong>${p.parentTel||'—'}</div>
+        <div class="detail-item"><strong>Email</strong>${p.parentEmail||'—'}</div>
+        <div class="detail-item"><strong>Emergency Contact</strong>${p.emergency||p.parent||'—'}${p.emergencyTel?' · '+p.emergencyTel:(p.parentTel?' · '+p.parentTel:'')}</div>
+        ${p.medical?`<div class="detail-item" style="grid-column:1/-1"><strong>⚕ Medical Notes</strong>${p.medical}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  updateStats();
+}
+
+function toggleExpand(id) { expandedCards.has(id)?expandedCards.delete(id):expandedCards.add(id); renderList(); }
+
+function mark(id, status) { attendance[currentSession][id] = status; renderList(); showToast(status==='present'?'✅ Marked present':'⚪ Marked absent'); }
+
+function updateStats() {
+  const sess = currentSession;
+  const wIds = walkins.filter(w => w.sessionIdx===sess).map(w => w.id);
+  const all = [...PLAYERS.map(p=>p.id), ...wIds];
+  document.getElementById('stat-total').textContent   = PLAYERS.length;
+  document.getElementById('stat-present').textContent = all.filter(id => attendance[sess][id]==='present').length;
+  document.getElementById('stat-absent').textContent  = all.filter(id => attendance[sess][id]==='absent').length;
+  document.getElementById('stat-walkins').textContent = wIds.length;
+}
+
+function toggleWalkin() {
+  document.getElementById('walkin-form').classList.toggle('open');
+  document.getElementById('toggle-arrow').classList.toggle('open');
+}
+
+function addWalkin() {
+  const name = document.getElementById('wi-name').value.trim();
+  if(!name) { showToast('⚠️ Full name is required'); return; }
+  const dobRaw = document.getElementById('wi-dob').value;
+  const id = nextWalkinId++;
+  walkins.push({ id, name, walkin:true, sessionIdx:currentSession,
+    dob: dobRaw ? new Date(dobRaw).toLocaleDateString('en-GB') : '',
+    year:         document.getElementById('wi-year').value.trim(),
+    parent:       document.getElementById('wi-parent').value.trim(),
+    parentTel:    document.getElementById('wi-parent-tel').value.trim(),
+    parentEmail:  document.getElementById('wi-parent-email').value.trim(),
+    emergency:    document.getElementById('wi-emergency-name').value.trim(),
+    emergencyTel: document.getElementById('wi-emergency-tel').value.trim(),
+    medical:      document.getElementById('wi-medical').value.trim(),
+  });
+  attendance[currentSession][id] = 'present';
+  ['wi-name','wi-dob','wi-year','wi-parent','wi-parent-tel','wi-parent-email','wi-emergency-name','wi-emergency-tel','wi-medical']
+    .forEach(f => document.getElementById(f).value = '');
+  renderList();
+  showToast('✅ Walk-in added & marked present');
+}
+
+function exportCSV() {
+  const sess = currentSession;
+  const label = `Session ${sess+1} - ${SESSIONS[sess]}`;
+  const rows = [['Session','Name','Type','Status','School Year','DOB','Parent','Parent Tel','Parent Email','Emergency','Emergency Tel','Medical Notes']];
+  PLAYERS.forEach(p => rows.push([label,p.name,'Registered',attendance[sess][p.id],p.year,p.dob,p.parent,p.parentTel,p.parentEmail,p.emergency,p.emergencyTel,p.medical]));
+  walkins.filter(w => w.sessionIdx===sess).forEach(p => rows.push([label,p.name,'Walk-in',attendance[sess][p.id],p.year,p.dob,p.parent,p.parentTel,p.parentEmail,p.emergency,p.emergencyTel,p.medical]));
+  const csv = rows.map(r => r.map(c => `"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(new Blob([csv],{type:'text/csv'})), download:`HarrowTownCC_Session${sess+1}_${SESSIONS[sess].replace(/ /g,'-')}.csv`});
+  a.click();
+  showToast('⬇️ CSV exported');
+}
+
+function resetSession() {
+  if(!confirm(`Reset attendance for Session ${currentSession+1} (${SESSIONS[currentSession]})?`)) return;
+  PLAYERS.forEach(p => attendance[currentSession][p.id] = 'absent');
+  walkins = walkins.filter(w => w.sessionIdx !== currentSession);
+  expandedCards.clear(); renderList();
+  showToast('🔄 Session reset');
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>
