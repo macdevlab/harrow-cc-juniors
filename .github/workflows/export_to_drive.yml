@@ -32,18 +32,19 @@ jobs:
           echo "=== First 3 lines ==="
           head -n 3 service-account-key.json
           echo "=== Valid JSON check ==="
-          python -c '
-import json, sys
+          python -c "
+import json
+import sys
 try:
-    with open("service-account-key.json") as f:
+    with open('service-account-key.json') as f:
         data = json.load(f)
-    print("Valid JSON ✓")
-    print("Service account email:", data.get("client_email"))
+    print('Valid JSON ✓')
+    print('Service account email:', data.get('client_email'))
 except Exception as e:
-    print("Invalid JSON ✗")
+    print('Invalid JSON ✗')
     print(e)
     sys.exit(1)
-          '
+"
 
       - name: Run export script
         env:
