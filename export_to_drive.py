@@ -62,6 +62,7 @@ def fetch_firebase_session(session_key):
     try:
         with urllib.request.urlopen(url, timeout=20) as resp:
             raw = resp.read().decode("utf-8").strip()
+            print(f"  Raw response (first 300 chars): {raw[:300]}")
             if not raw or raw == "null":
                 return {}
             return json.loads(raw)
