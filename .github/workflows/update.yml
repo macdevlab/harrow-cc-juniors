@@ -2,21 +2,52 @@ name: Auto-Update Junior Register
 
 on:
   schedule:
-    # All times in UTC. UK is BST (UTC+1) Apr–Oct, GMT (UTC+0) Oct–Apr.
-    # Currently BST season — subtract 1 hour for UTC:
-    - cron: '0 6 * * 1'   # Monday    06:00 UTC = 07:00 BST
-    - cron: '0 6 * * 3'   # Wednesday 06:00 UTC = 07:00 BST
-    - cron: '0 0 * * 0'   # Sunday    00:00 UTC = 01:00 BST
+    # ── Player list refresh (from Google Sheet) ──────────────────────────────
+    # All times UTC. UK is BST (UTC+1) Apr–Oct.
+    - cron: '0 6 * * 1'    # Monday    06:00 UTC = 07:00 BST  → refresh players
+    - cron: '0 6 * * 3'    # Wednesday 06:00 UTC = 07:00 BST  → refresh players
+    - cron: '0 0 * * 0'    # Sunday    00:00 UTC = 01:00 BST  → refresh players
 
-  # Also allows you to trigger a manual update from the GitHub Actions tab
+    # ── Google Drive export (after each Sunday session) ──────────────────────
+    # Sessions run on Sundays. Export at 22:00 UTC = 23:00 BST to give coaches
+    # the full day to mark attendance before the file is saved to Drive.
+    - cron: '0 22 * * 0'   # Sunday    22:00 UTC = 23:00 BST  → export to Drive
+
+  # Manual trigger from the GitHub Actions tab
   workflow_dispatch:
+    inputs:
+      job:
+        description: 'Which job to run'
+        required: true
+        default: 'update-players'
+        type: choice
+        options:
+          - update-players
+          - export-to-drive
+          - both
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  update-register:
+
+  # ── JOB 1: Refresh player list from Google Sheet ─────────────────────────
+  update-players:
+    name: Refresh player list
     runs-on: ubuntu-latest
+    # Run on schedule (Monday/Wednesday/Sunday 1am) OR manual trigger
+    if: |
+      github.event_name == 'schedule' && (
+        contains(github.event.schedule, '0 6 * * 1') ||
+        contains(github.event.schedule, '0 6 * * 3') ||
+        contains(github.event.schedule, '0 0 * * 0')
+      ) ||
+      github.event_name == 'workflow_dispatch' && (
+        inputs.job == 'update-players' || inputs.job == 'both'
+      )
 
     permissions:
-      contents: write   # needed to push the updated index.html
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -27,7 +58,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Run update script
+      - name: Refresh players from Google Sheet
         env:
           SHEET_CSV_URL: ${{ secrets.SHEET_CSV_URL }}
         run: python update_register.py
@@ -43,9 +74,39 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git commit -m "Auto-update: junior register refreshed from Google Sheet [$(date -u '+%Y-%m-%d %H:%M UTC')]"
+          git commit -m "Auto-update: player list refreshed from Google Sheet [$(date -u '+%Y-%m-%d %H:%M UTC')]"
           git push
 
       - name: No changes detected
         if: steps.changes.outputs.changed == 'false'
-        run: echo "No new registrations found — index.html unchanged."
+        run: echo "No new registrations — index.html unchanged."
+
+  # ── JOB 2: Export Sunday session attendance to Google Drive ──────────────
+  export-to-drive:
+    name: Export session to Google Drive
+    runs-on: ubuntu-latest
+    # Run on Sunday evening schedule OR manual trigger
+    if: |
+      github.event_name == 'schedule' && contains(github.event.schedule, '0 22 * * 0') ||
+      github.event_name == 'workflow_dispatch' && (
+        inputs.job == 'export-to-drive' || inputs.job == 'both'
+      )
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install cryptography
+
+      - name: Export attendance to Google Drive
+        env:
+          FIREBASE_DATABASE_URL:       ${{ secrets.FIREBASE_DATABASE_URL }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_DRIVE_FOLDER_ID:      ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: python export_to_drive.py
