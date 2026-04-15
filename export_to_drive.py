@@ -3,15 +3,17 @@
 export_to_drive.py
 ------------------
 Reads attendance data from Firebase Realtime Database for the most recent
-Sunday session and uploads a CSV to a Google Drive folder.
+Sunday session and writes it to a Google Sheet in your Drive.
+
+Uses the Google Sheets API which works correctly with service accounts
+shared on a spreadsheet (no storage quota issues).
 
 Required GitHub Secrets:
   FIREBASE_DATABASE_URL       — e.g. https://your-project.firebaseio.com
   GOOGLE_SERVICE_ACCOUNT_JSON — full JSON contents of the service account key
-  GOOGLE_DRIVE_FOLDER_ID      — ID of the Drive folder to save CSVs into
+  GOOGLE_SPREADSHEET_ID       — ID of the Google Sheet to write results into
 """
 
-import csv
 import io
 import json
 import os
@@ -22,7 +24,7 @@ from datetime import datetime, timezone
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 FIREBASE_DATABASE_URL       = os.environ.get("FIREBASE_DATABASE_URL", "").rstrip("/")
 GOOGLE_SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
-GOOGLE_DRIVE_FOLDER_ID      = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+GOOGLE_SPREADSHEET_ID       = os.environ.get("GOOGLE_SPREADSHEET_ID", "")
 
 SESSIONS = [
     "12 Apr 2026", "19 Apr 2026", "26 Apr 2026", "03 May 2026", "10 May 2026",
@@ -68,45 +70,10 @@ def fetch_firebase_session(session_key):
         return {}
 
 
-# ── CSV BUILDER ───────────────────────────────────────────────────────────────
+# ── GOOGLE SHEETS ─────────────────────────────────────────────────────────────
 
-def build_csv(session_label, data):
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "Session", "Name", "Type", "Status",
-        "School Year", "DOB", "Parent / Guardian",
-        "Parent Tel", "Parent Email",
-        "Emergency Contact", "Emergency Tel", "Medical Notes",
-        "Last Updated"
-    ])
-    if not data:
-        writer.writerow([session_label, "No attendance data recorded",
-                         "", "", "", "", "", "", "", "", "", "", ""])
-    else:
-        for _, record in sorted(data.items(), key=lambda x: x[1].get("name", "").lower()):
-            writer.writerow([
-                session_label,
-                record.get("name", ""),
-                record.get("type", "registered"),
-                record.get("status", "absent"),
-                record.get("year", ""),
-                record.get("dob", ""),
-                record.get("parent", ""),
-                record.get("parentTel", ""),
-                record.get("parentEmail", ""),
-                record.get("emergency", ""),
-                record.get("emergencyTel", ""),
-                record.get("medical", ""),
-                record.get("updatedAt", ""),
-            ])
-    return output.getvalue()
-
-
-# ── GOOGLE DRIVE ──────────────────────────────────────────────────────────────
-
-def get_drive_service(service_account_json):
-    """Build authenticated Google Drive service using the official client library."""
+def get_sheets_service(service_account_json):
+    """Build authenticated Google Sheets service."""
     try:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
@@ -122,52 +89,88 @@ def get_drive_service(service_account_json):
 
     creds = service_account.Credentials.from_service_account_info(
         creds_dict,
-        scopes=["https://www.googleapis.com/auth/drive.file"]
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
-    return build("drive", "v3", credentials=creds, cache_discovery=False)
+    return build("sheets", "v4", credentials=creds, cache_discovery=False)
 
 
-def upload_to_drive(csv_content, filename, folder_id, drive_service):
-    """Upload or update a CSV file in Google Drive."""
-    from googleapiclient.http import MediaIoBaseUpload
+def build_rows(session_label, data):
+    """Build list of rows for the spreadsheet."""
+    headers = [
+        "Session", "Name", "Type", "Status",
+        "School Year", "DOB", "Parent / Guardian",
+        "Parent Tel", "Parent Email",
+        "Emergency Contact", "Emergency Tel", "Medical Notes",
+        "Last Updated"
+    ]
+    rows = [headers]
 
-    media = MediaIoBaseUpload(
-        io.BytesIO(csv_content.encode("utf-8")),
-        mimetype="text/csv",
-        resumable=False
-    )
+    if not data:
+        rows.append([session_label, "No attendance data recorded",
+                     "", "", "", "", "", "", "", "", "", "", ""])
+    else:
+        for _, record in sorted(data.items(), key=lambda x: x[1].get("name", "").lower()):
+            rows.append([
+                session_label,
+                record.get("name", ""),
+                record.get("type", "registered"),
+                record.get("status", "absent"),
+                record.get("year", ""),
+                record.get("dob", ""),
+                record.get("parent", ""),
+                record.get("parentTel", ""),
+                record.get("parentEmail", ""),
+                record.get("emergency", ""),
+                record.get("emergencyTel", ""),
+                record.get("medical", ""),
+                record.get("updatedAt", ""),
+            ])
+    return rows
 
-    # Check if file already exists so we update rather than duplicate
-    results = drive_service.files().list(
-        q=f"name='{filename}' and '{folder_id}' in parents and trashed=false",
-        fields="files(id, name)"
+
+def write_to_sheet(rows, session_label, spreadsheet_id, sheets_service):
+    """Write attendance rows to a named sheet tab. Creates the tab if needed."""
+    # Clean sheet name — remove characters not allowed in sheet names
+    sheet_name = session_label.replace("—", "-").replace("/", "-")[:50]
+
+    # Get existing sheets
+    spreadsheet = sheets_service.spreadsheets().get(
+        spreadsheetId=spreadsheet_id
     ).execute()
-    existing = results.get("files", [])
+    existing_sheets = [s["properties"]["title"] for s in spreadsheet["sheets"]]
 
-    if existing:
-        file_id = existing[0]["id"]
-        print(f"  Updating existing file: {filename} (id: {file_id})")
-        result = drive_service.files().update(
-            fileId=file_id,
-            media_body=media,
-            fields="id,webViewLink"
+    if sheet_name not in existing_sheets:
+        # Create a new tab for this session
+        print(f"  Creating new sheet tab: '{sheet_name}'")
+        sheets_service.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"requests": [{"addSheet": {"properties": {"title": sheet_name}}}]}
         ).execute()
     else:
-        print(f"  Creating new file: {filename}")
-        result = drive_service.files().create(
-            body={"name": filename, "parents": [folder_id]},
-            media_body=media,
-            fields="id,webViewLink"
+        # Clear existing data first
+        print(f"  Updating existing sheet tab: '{sheet_name}'")
+        sheets_service.spreadsheets().values().clear(
+            spreadsheetId=spreadsheet_id,
+            range=f"'{sheet_name}'!A:Z"
         ).execute()
 
-    return result.get("webViewLink", f"https://drive.google.com/drive/folders/{folder_id}")
+    # Write the data
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=spreadsheet_id,
+        range=f"'{sheet_name}'!A1",
+        valueInputOption="RAW",
+        body={"values": rows}
+    ).execute()
+
+    sheet_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
+    return sheet_url
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
 def main():
     print(f"\n{'='*60}")
-    print(f"HTCC Juniors — Session Export to Google Drive")
+    print(f"HTCC Juniors — Session Export to Google Sheets")
     print(f"Run at: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print(f"{'='*60}\n")
 
@@ -175,7 +178,7 @@ def main():
     missing = [k for k, v in {
         "FIREBASE_DATABASE_URL":       FIREBASE_DATABASE_URL,
         "GOOGLE_SERVICE_ACCOUNT_JSON": GOOGLE_SERVICE_ACCOUNT_JSON,
-        "GOOGLE_DRIVE_FOLDER_ID":      GOOGLE_DRIVE_FOLDER_ID,
+        "GOOGLE_SPREADSHEET_ID":       GOOGLE_SPREADSHEET_ID,
     }.items() if not v]
     if missing:
         print(f"ERROR: Missing required secrets: {', '.join(missing)}")
@@ -202,24 +205,23 @@ def main():
     walkins = sum(1 for r in data.values() if r.get("type") == "walk-in")
     print(f"   → {len(data)} records | {present} present | {absent} absent | {walkins} walk-ins")
 
-    # Build CSV
-    print("\n2. Building CSV...")
-    csv_content = build_csv(session_label, data)
-    filename    = f"HTCC_Juniors_{session_str.replace(' ', '_')}_Session{session_idx+1}.csv"
-    print(f"   → Filename: {filename}")
+    # Build rows
+    print("\n2. Building spreadsheet rows...")
+    rows = build_rows(session_label, data)
+    print(f"   → {len(rows) - 1} data rows + header")
 
     # Authenticate
-    print("\n3. Authenticating with Google Drive...")
-    drive_service = get_drive_service(GOOGLE_SERVICE_ACCOUNT_JSON)
+    print("\n3. Authenticating with Google Sheets...")
+    sheets_service = get_sheets_service(GOOGLE_SERVICE_ACCOUNT_JSON)
     print("   → Authenticated ✓")
 
-    # Upload
-    print("\n4. Uploading to Google Drive...")
-    file_url = upload_to_drive(csv_content, filename, GOOGLE_DRIVE_FOLDER_ID, drive_service)
-    print(f"   → Uploaded ✓")
-    print(f"   → {file_url}")
+    # Write to sheet
+    print("\n4. Writing to Google Sheet...")
+    sheet_url = write_to_sheet(rows, session_label, GOOGLE_SPREADSHEET_ID, sheets_service)
+    print(f"   → Written ✓")
+    print(f"   → {sheet_url}")
 
-    print(f"\n✅ Done! '{filename}' saved to Google Drive.\n")
+    print(f"\n✅ Done! Session data saved to Google Sheets.\n")
 
 
 if __name__ == "__main__":
