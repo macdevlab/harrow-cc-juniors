@@ -1,7 +1,9 @@
 name: Export HTCC Juniors Sessions to Google Drive
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:          # Allows you to run it manually from the Actions tab
+  # schedule:
+  #   - cron: '0 17 * * *'    # Uncomment if you want it to run daily at 17:00 UTC
 
 jobs:
   export:
@@ -21,30 +23,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install google-api-python-client google-auth google-auth-httplib2
 
-      - name: Decode and write service account key
+      - name: Write service account key file
         run: |
-          echo "${{ secrets.SERVICE_ACCOUNT_JSON_BASE64 }}" | base64 --decode > service-account-key.json
+          cat > service-account-key.json << 'EOL'
+          ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          EOL
 
-      - name: Verify service account JSON
+      - name: Verify service account JSON (debug)
         run: |
-          echo "=== File size ==="
+          echo "=== Service account file check ==="
           ls -l service-account-key.json
-          echo "=== First 3 lines ==="
-          head -n 3 service-account-key.json
-          echo "=== Valid JSON check ==="
           python -c "
-import json
-import sys
-try:
-    with open('service-account-key.json') as f:
-        data = json.load(f)
-    print('Valid JSON ✓')
-    print('Service account email:', data.get('client_email'))
-except Exception as e:
-    print('Invalid JSON ✗')
-    print(e)
-    sys.exit(1)
-"
+          import json
+          with open('service-account-key.json') as f:
+              data = json.load(f)
+          print('Valid JSON ✓')
+          print('Service account email:', data.get('client_email'))
+          "
 
       - name: Run export script
         env:
