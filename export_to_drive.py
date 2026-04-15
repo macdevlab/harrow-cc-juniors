@@ -1,19 +1,3 @@
-#!/usr/bin/env python3
-"""
-export_to_drive.py
-------------------
-Reads attendance data from Firebase Realtime Database for the most recent
-Sunday session and uploads a CSV to a Google Drive folder.
-
-Runs via GitHub Actions after each Sunday session (scheduled for 23:00 BST
-= 22:00 UTC, giving coaches the full day to mark attendance).
-
-Required environment variables (set as GitHub Secrets):
-  FIREBASE_DATABASE_URL       — e.g. https://your-project.firebaseio.com
-  GOOGLE_SERVICE_ACCOUNT_JSON — full JSON contents of the service account key
-  GOOGLE_DRIVE_FOLDER_ID      — ID of the Drive folder to save CSVs into
-"""
-
 import csv
 import io
 import json
@@ -26,27 +10,28 @@ from googleapiclient.http import MediaIoBaseUpload
 from googleapiclient.errors import HttpError
 
 # ========================= CONFIG =========================
-# Path to your service account JSON key file
-SERVICE_ACCOUNT_FILE = 'service-account-key.json'   # Put this in your repo or use GitHub Secrets + checkout
+# Service account key file (created by GitHub Actions)
+SERVICE_ACCOUNT_FILE = 'service-account-key.json'
 
-# Your Google Drive Folder ID (or Shared Drive ID)
-GOOGLE_DRIVE_FOLDER_ID = os.getenv('GOOGLE_DRIVE_FOLDER_ID')   # Better to use environment variable
+# Google Drive Folder ID - loaded from environment variable (recommended)
+GOOGLE_DRIVE_FOLDER_ID = os.getenv('GOOGLE_DRIVE_FOLDER_ID')
 
-# Firebase config (keep your existing Firebase setup)
-# ... your existing Firebase code here ...
+if not GOOGLE_DRIVE_FOLDER_ID:
+    raise ValueError("GOOGLE_DRIVE_FOLDER_ID environment variable is not set!")
 
 # =========================================================
 
 def get_drive_service():
     """Create and return an authenticated Google Drive service using service account."""
+    print("3. Authenticating with Google Drive...")
     try:
         credentials = service_account.Credentials.from_service_account_file(
             SERVICE_ACCOUNT_FILE,
-            scopes=['https://www.googleapis.com/auth/drive']   # Full Drive scope - most reliable
+            scopes=['https://www.googleapis.com/auth/drive']  # Full access - most reliable for service accounts
         )
         
         service = build('drive', 'v3', credentials=credentials)
-        print("    Google Drive service created successfully (Service Account)")
+        print("    ✓ Google Drive service created successfully")
         return service
     except Exception as e:
         print(f"    ERROR creating Drive service: {e}")
@@ -54,8 +39,8 @@ def get_drive_service():
 
 
 def upload_to_drive(service, csv_content: str, filename: str, folder_id: str) -> str:
-    """Upload CSV content to Google Drive using the official client library."""
-    print(f"  Uploading: {filename} to folder {folder_id}")
+    """Upload CSV content to Google Drive."""
+    print(f"4. Uploading: {filename} ...")
     
     # Convert string to file-like object
     file_stream = io.BytesIO(csv_content.encode('utf-8'))
@@ -79,13 +64,19 @@ def upload_to_drive(service, csv_content: str, filename: str, folder_id: str) ->
             fields='id, name, webViewLink'
         ).execute()
         
-        print(f"    Upload successful! File ID: {file.get('id')}")
-        print(f"    View link: {file.get('webViewLink')}")
+        file_id = file.get('id')
+        web_view_link = file.get('webViewLink')
         
-        return file.get('webViewLink')
+        print(f"    ✓ Upload successful! File ID: {file_id}")
+        if web_view_link:
+            print(f"    View link: {web_view_link}")
+        else:
+            print(f"    Alternative link: https://drive.google.com/file/d/{file_id}/view")
         
+        return web_view_link or f"https://drive.google.com/file/d/{file_id}/view"
+
     except HttpError as error:
-        print(f"    Google Drive API Error: {error}")
+        print(f"    Google Drive API Error: {error.resp.status} {error.reason}")
         try:
             error_details = json.loads(error.content.decode())
             print("    Error details:")
@@ -93,13 +84,17 @@ def upload_to_drive(service, csv_content: str, filename: str, folder_id: str) ->
         except:
             print(f"    Raw error: {error.content}")
         
-        # Helpful guidance for common 403 issues
         if error.resp.status == 403:
-            print("\n    === HOW TO FIX 403 FORBIDDEN WITH SERVICE ACCOUNT ===")
-            print("    1. Share the target folder (or Shared Drive) with your service account email")
-            print("       (e.g. your-project@your-project.iam.gserviceaccount.com) → give it 'Editor' access")
-            print("    2. Strongly recommended: Use a **Shared Drive** instead of a normal My Drive folder")
-            print("    3. Make sure the service account has the 'https://www.googleapis.com/auth/drive' scope")
+            print("\n    === COMMON 403 FIXES ===")
+            print("    1. Share the folder with your service account email (ends with @iam.gserviceaccount.com)")
+            print("       → Give it 'Editor' access")
+            print("    2. Use a **Shared Drive** (Team Drive) instead of a normal folder - much more reliable")
+            print("    3. Make sure the service account has the 'drive' scope (it does in this script)")
+        
+        raise
+
+    except Exception as e:
+        print(f"    Unexpected upload error: {e}")
         raise
 
 
@@ -109,7 +104,7 @@ def main():
     print(f"Run at: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
     print("=============================================================")
     
-    # Example: Export one session (adapt to your loop if you have multiple)
+    # === Example for one session - adapt this to your actual loop if needed ===
     session_date = "12 Apr 2026"
     session_name = "Session 1"
     firebase_key = "session_1_12_Apr_2026"
@@ -118,32 +113,37 @@ def main():
     print(f"Exporting: {session_name} — {session_date}")
     print(f"Firebase key: {firebase_key}")
     
-    # 1. Fetch from Firebase (keep your existing code here)
+    # 1. Fetching from Firebase (replace with your actual Firebase code)
     print("1. Fetching attendance from Firebase...")
-    # ... your existing Firebase fetching logic ...
-    # For this example, we'll assume you build csv_content below
+    # TODO: Add your Firebase fetching logic here
+    # For now, we'll use placeholder data
+    records = []  # Replace with real data from Firebase
     
-    # 2. Build CSV (replace with your actual CSV generation)
+    print(f"   → {len(records)} records fetched")
+    
+    # 2. Building CSV
     print("2. Building CSV...")
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Name", "Status", "Notes"])   # Add your real headers
-    # writer.writerows(your_data)   # ← add your actual rows here
+    
+    # Example headers - CHANGE THESE to match your actual data
+    writer.writerow(["Name", "Status", "Notes", "Timestamp"])
+    
+    # Example rows - REPLACE with your real data
+    for record in records:
+        writer.writerow([record.get('name', ''), record.get('status', ''), record.get('notes', ''), ''])
+    
     csv_content = output.getvalue()
     
     print(f"   → Filename: {filename}")
+    print(f"   → CSV contains {len(csv_content.splitlines())} lines")
     
-    # 3. Upload
-    print("3. Authenticating with Google Drive...")
+    # 3 & 4. Authenticate and Upload
     service = get_drive_service()
+    file_url = upload_to_drive(service, csv_content, filename, GOOGLE_DRIVE_FOLDER_ID)
     
-    print("4. Uploading to Google Drive...")
-    try:
-        file_url = upload_to_drive(service, csv_content, filename, GOOGLE_DRIVE_FOLDER_ID)
-        print(f"   → Success! File uploaded: {file_url}")
-    except Exception as e:
-        print(f"   Upload failed: {e}")
-        raise
+    print(f"\n   → Export completed successfully!")
+    print(f"   Final link: {file_url}")
 
 
 if __name__ == "__main__":
