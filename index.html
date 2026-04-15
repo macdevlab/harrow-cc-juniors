@@ -184,11 +184,90 @@
   <button class="export-btn" onclick="window.print()">🖨️ Print</button>
   <button class="export-btn" onclick="exportCSV()">⬇️ Export CSV</button>
   <button class="export-btn" onclick="resetSession()">🔄 Reset Session</button>
+  <button class="export-btn" onclick="syncFullSessionToFirebase(currentSession); showToast('☁️ Synced to cloud')">☁️ Sync Now</button>
 </div>
 
 <div class="toast" id="toast"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
 <script>
+// ── FIREBASE SETUP ───────────────────────────────────────────────────────────
+// Paste your Firebase config values here (Firebase Console → Project Settings
+// → Your apps → SDK setup and configuration → Config)
+const firebaseConfig = {
+  apiKey: "AIzaSyBrzlgjnV67ruC0vXNChp49ngyV0OehKrM",
+  authDomain: "harrow-town-cc.firebaseapp.com",
+  databaseURL: "https://harrow-town-cc-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "harrow-town-cc",
+  storageBucket: "harrow-town-cc.firebasestorage.app",
+  messagingSenderId: "705503054388",
+  appId: "1:705503054388:web:751fd05d3f019f7ab91861"
+};
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.database();
+let firebaseSyncEnabled = true;
+
+// Save a single attendance record to Firebase
+function saveToFirebase(sessionIdx, playerId, status, playerName, isWalkin=false, walkinData=null) {
+  if (!firebaseSyncEnabled) return;
+  const sessionKey = `session_${sessionIdx + 1}_${SESSIONS[sessionIdx].replace(/ /g, '_')}`;
+  const ref = db.ref(`attendance/${sessionKey}/${playerId}`);
+  const data = {
+    name:      playerName,
+    status:    status,
+    type:      isWalkin ? 'walk-in' : 'registered',
+    updatedAt: new Date().toISOString()
+  };
+  if (isWalkin && walkinData) {
+    data.dob          = walkinData.dob || '';
+    data.year         = walkinData.year || '';
+    data.parent       = walkinData.parent || '';
+    data.parentTel    = walkinData.parentTel || '';
+    data.parentEmail  = walkinData.parentEmail || '';
+    data.emergency    = walkinData.emergency || '';
+    data.emergencyTel = walkinData.emergencyTel || '';
+    data.medical      = walkinData.medical || '';
+  }
+  ref.set(data).catch(err => {
+    console.warn('Firebase sync error:', err);
+    showToast('⚠️ Offline — saved locally only');
+  });
+}
+
+// Save all current session data to Firebase (called on session change)
+function syncFullSessionToFirebase(sessionIdx) {
+  if (!firebaseSyncEnabled) return;
+  const sessionKey = `session_${sessionIdx + 1}_${SESSIONS[sessionIdx].replace(/ /g, '_')}`;
+  const updates = {};
+  PLAYERS.forEach(p => {
+    updates[`attendance/${sessionKey}/${p.id}`] = {
+      name:      p.name,
+      status:    attendance[sessionIdx][p.id] || 'absent',
+      type:      'registered',
+      updatedAt: new Date().toISOString()
+    };
+  });
+  walkins.filter(w => w.sessionIdx === sessionIdx).forEach(w => {
+    updates[`attendance/${sessionKey}/${w.id}`] = {
+      name:         w.name,
+      status:       attendance[sessionIdx][w.id] || 'absent',
+      type:         'walk-in',
+      dob:          w.dob || '',
+      year:         w.year || '',
+      parent:       w.parent || '',
+      parentTel:    w.parentTel || '',
+      parentEmail:  w.parentEmail || '',
+      emergency:    w.emergency || '',
+      emergencyTel: w.emergencyTel || '',
+      medical:      w.medical || '',
+      updatedAt:    new Date().toISOString()
+    };
+  });
+  db.ref().update(updates).catch(err => console.warn('Firebase bulk sync error:', err));
+}
+
 const SESSIONS = [
   "12 Apr 2026","19 Apr 2026","26 Apr 2026","03 May 2026","10 May 2026",
   "17 May 2026","24 May 2026","31 May 2026","07 Jun 2026","14 Jun 2026",
@@ -197,44 +276,40 @@ const SESSIONS = [
 
 // %%PLAYERS_START%%
 const PLAYERS = [
-  {id:1 , name:"Aarav patel",  dob:"29/05/2011",  year:"Year 10",  parent:"Geetaben jignesh patel",  parentTel:"07438639601",  parentEmail:"aaravpatel2905@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:2 , name:"Aaryadit Parmar",  dob:"24/12/2020",  year:"Reception",  parent:"Tushar Parmar",  parentTel:"07407850463",  parentEmail:"Parmartushars@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:3 , name:"AAYAAN PATEL",  dob:"09/03/2020",  year:"Year 1",  parent:"KALPESHKUMAR PATEL",  parentTel:"07920038457",  parentEmail:"mydreamzmyaim@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:4 , name:"Abir Bisht",  dob:"19/08/2019",  year:"Year 2",  parent:"Ajay Bisht",  parentTel:"07448038642",  parentEmail:"ajay.bisht86@yahoo.in",  emergency:"",emergencyTel:"",  medical:""},
-  {id:5 , name:"Agamveer Singh",  dob:"03/04/2019",  year:"Year 2",  parent:"Navneet kaur",  parentTel:"07463045601",  parentEmail:"neetukaur018@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:6 , name:"Arjun Krishna",  dob:"27/12/2018",  year:"Year 2",  parent:"Harikrishna V",  parentTel:"07466073026",  parentEmail:"harikvp@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:7 , name:"Arsalaan Raza",  dob:"02/02/2012",  year:"Year 9",  parent:"Zaira Rizvi",  parentTel:"07466603348",  parentEmail:"zairasraza@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:8 , name:"Avi patel",  dob:"26/08/2013",  year:"Year 8",  parent:"Kinjalkumar Patel",  parentTel:"07500068933",  parentEmail:"patell.kinjal25@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:9 , name:"Dev Pandya",  dob:"01/07/2013",  year:"Year 8",  parent:"Shailesh Pandya",  parentTel:"07930193834",  parentEmail:"spandya@hotmail.co.uk",  emergency:"",emergencyTel:"",  medical:""},
-  {id:10, name:"Devik Dipesh Modha",  dob:"07/08/2012",  year:"Year 9",  parent:"Dipesh Modha",  parentTel:"07791844111",  parentEmail:"Dipesh_modha@yahoo.co.uk",  emergency:"",emergencyTel:"",  medical:""},
-  {id:11, name:"Dhairy Patel",  dob:"30/01/2011",  year:"Year 10",  parent:"Shankarlal Patel",  parentTel:"07448442196",  parentEmail:"dhairyp037@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:12, name:"Ehsan Hussain",  dob:"06/02/2014",  year:"Year 7",  parent:"Yassar Hussain",  parentTel:"07970403844",  parentEmail:"yassar@upliftcapital.co.uk",  emergency:"",emergencyTel:"",  medical:""},
-  {id:13, name:"Ethan Tauro",  dob:"16/02/2013",  year:"Year 8",  parent:"Natasha Tauro",  parentTel:"07794135667",  parentEmail:"natashalobo2310@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:14, name:"Freddie Thompson",  dob:"13/06/2012",  year:"Year 9",  parent:"Steve Thompson",  parentTel:"07703009359",  parentEmail:"stevegthompson@me.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:15, name:"Hardhik Pulluru",  dob:"15/09/2017",  year:"Year 3",  parent:"Yeshwanth Pulluru",  parentTel:"07887175143",  parentEmail:"yeshpulluru@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:16, name:"HEET SANDIPKUMAR PATEL",  dob:"07/05/2014",  year:"Year 7",  parent:"Sandipkumar Suryakant Patel",  parentTel:"07393107752",  parentEmail:"sandip.patel92@yahoo.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:17, name:"Ishaan Pandya",  dob:"05/04/2022",  year:"Reception",  parent:"Hemal Pandya",  parentTel:"07894821321",  parentEmail:"hemalp1987@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:18, name:"Jainil",  dob:"27/10/2017",  year:"Year 3",  parent:"Chandresh",  parentTel:"07888346645",  parentEmail:"Chandreshgoklani@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:19, name:"Jaysheel Shah",  dob:"26/11/2014",  year:"Year 6",  parent:"Sweta Soneji",  parentTel:"07947260450",  parentEmail:"Swetasoneji@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:20, name:"Jemish Jitendra",  dob:"03/12/2011",  year:"Year 9",  parent:"Jitendra Quessava",  parentTel:"+44 7928 762368",  parentEmail:"jquessava@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:21, name:"Muhammad Hussain",  dob:"21/07/2019",  year:"Year 2",  parent:"Asif Husaain",  parentTel:"07340665770",  parentEmail:"asif12389@gmail.com",  emergency:"",emergencyTel:"",  medical:"Medical Condition — please check with parent before session"},
-  {id:22, name:"Muhammad rayaan Qayyum",  dob:"07/06/2013",  year:"Year 8",  parent:"Muhammad Samar Qayyum",  parentTel:"07857126707",  parentEmail:"Samar_duaa@yahoo.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:23, name:"Muhaymin Mohammed",  dob:"15/04/2017",  year:"Year 4",  parent:"Shahzeb Mohammed",  parentTel:"07884187040",  parentEmail:"shahzeb.mohammed@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:24, name:"Oscar Remedios",  dob:"22/05/2020",  year:"Year 1",  parent:"Jason Remedios",  parentTel:"07979149663",  parentEmail:"jason.remedios99@gmail.com",  emergency:"",emergencyTel:"",  medical:"Food Allergy — please check with parent before session"},
-  {id:25, name:"Panav Patel",  dob:"19/04/2016",  year:"Year 5",  parent:"Harshilkumar patel",  parentTel:"07507273896",  parentEmail:"Harshilpatel45@yahoo.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:26, name:"Panth Shah",  dob:"25/09/2014",  year:"Year 6",  parent:"Pratham Shah",  parentTel:"07405103526",  parentEmail:"prathamshah11217@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:27, name:"Sanaaya Shah",  dob:"16/08/2019",  year:"Year 2",  parent:"Sweta Soneji",  parentTel:"07947260450",  parentEmail:"Swetasoneji@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:28, name:"Shivam Shah",  dob:"24/04/2016",  year:"Year 5",  parent:"Pranav Shah",  parentTel:"07898194688",  parentEmail:"pranav143shah@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:29, name:"Shivansh Patel",  dob:"30/10/2017",  year:"Year 8",  parent:"Himalkumar Patel",  parentTel:"07543622666",  parentEmail:"himalnote3@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:30, name:"Shubhman Gosalia",  dob:"12/03/2021",  year:"Reception",  parent:"Bijal Shah",  parentTel:"07341847076",  parentEmail:"bijalsh25@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:31, name:"Sneh patel",  dob:"06/10/2014",  year:"Year 6",  parent:"Bhavikkumar patel",  parentTel:"07949728753",  parentEmail:"bhavikpatel76802@yahoo.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:32, name:"Syed Mustafa",  dob:"20/09/2017",  year:"Year 3",  parent:"Fahim Ali",  parentTel:"07897279575",  parentEmail:"fahim_gravity@hotmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:33, name:"Tanay Varma",  dob:"15/02/2014",  year:"Year 6",  parent:"Ruchi Varma",  parentTel:"07769324257",  parentEmail:"ruchilodha@yahoo.com",  emergency:"",emergencyTel:"",  medical:"Medical Condition, Autism, ADHD — please check with parent before session"},
-  {id:34, name:"Tejashwin Sathishkumar",  dob:"19/01/2020",  year:"Year 1",  parent:"Sathishkumar Munirathinam",  parentTel:"07909574700",  parentEmail:"Sathishkumar Munirathinam",  emergency:"",emergencyTel:"",  medical:""},
-  {id:35, name:"Vedansh Parmar",  dob:"08/02/2014",  year:"Year 7",  parent:"Tushar Parmar",  parentTel:"07407850463",  parentEmail:"Parmartushars@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:36, name:"Vishnu Karthikeyan",  dob:"03/08/2015",  year:"Year 6",  parent:"Karthikeyan Gurumoorthy",  parentTel:"07825656292",  parentEmail:"karthikeyan.gurumoorthy@gmail.com",  emergency:"",emergencyTel:"",  medical:"Vishnu has right sided Microtia, but he can play cricket well — please check with parent before session"},
-  {id:37, name:"Vivan Pandya",  dob:"08/07/2018",  year:"Year 3",  parent:"Khushboo Pandya",  parentTel:"07553 342075",  parentEmail:"Khushboopandya90@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
-  {id:38, name:"Viyaan Shah",  dob:"01/03/2020",  year:"Year 1",  parent:"Pranav Shah",  parentTel:"07898194688",  parentEmail:"pranav143shah@gmail.com",  emergency:"",emergencyTel:"",  medical:""},
+  {id:1,  name:"Aarav Patel",            dob:"29/05/2011",year:"Year 10",  parent:"Geetaben Jignesh Patel",     parentTel:"07438639601",    parentEmail:"aaravpatel2905@gmail.com",          emergency:"",emergencyTel:"",medical:""},
+  {id:2,  name:"Aaryadit Parmar",        dob:"24/12/2020",year:"Reception",parent:"Tushar Parmar",              parentTel:"07407850463",    parentEmail:"Parmartushars@gmail.com",           emergency:"",emergencyTel:"",medical:""},
+  {id:3,  name:"Aayaan Patel",           dob:"09/03/2020",year:"Year 1",   parent:"Kalpeshkumar Patel",         parentTel:"07920038457",    parentEmail:"mydreamzmyaim@gmail.com",           emergency:"",emergencyTel:"",medical:""},
+  {id:4,  name:"Abir Bisht",             dob:"19/08/2019",year:"Year 2",   parent:"Ajay Bisht",                 parentTel:"07448038642",    parentEmail:"ajay.bisht86@yahoo.in",             emergency:"",emergencyTel:"",medical:""},
+  {id:5,  name:"Agamveer Singh",         dob:"03/04/2019",year:"Year 2",   parent:"Navneet Kaur",               parentTel:"07463045601",    parentEmail:"neetukaur018@gmail.com",            emergency:"",emergencyTel:"",medical:""},
+  {id:6,  name:"Arjun Krishna",          dob:"27/12/2018",year:"Year 2",   parent:"Harikrishna V",              parentTel:"07466073026",    parentEmail:"harikvp@gmail.com",                 emergency:"",emergencyTel:"",medical:""},
+  {id:7,  name:"Arsalaan Raza",          dob:"02/02/2012",year:"Year 9",   parent:"Zaira Rizvi",                parentTel:"07466603348",    parentEmail:"zairasraza@gmail.com",              emergency:"",emergencyTel:"",medical:""},
+  {id:8,  name:"Avi Patel",              dob:"26/08/2013",year:"Year 8",   parent:"Kinjalkumar Patel",          parentTel:"07500068933",    parentEmail:"patell.kinjal25@gmail.com",         emergency:"",emergencyTel:"",medical:""},
+  {id:9,  name:"Dev Pandya",             dob:"01/07/2013",year:"Year 8",   parent:"Shailesh Pandya",            parentTel:"07930193834",    parentEmail:"spandya@hotmail.co.uk",             emergency:"",emergencyTel:"",medical:""},
+  {id:10, name:"Devik Dipesh Modha",     dob:"07/08/2012",year:"Year 9",   parent:"Dipesh Modha",               parentTel:"07791844111",    parentEmail:"Dipesh_modha@yahoo.co.uk",          emergency:"",emergencyTel:"",medical:""},
+  {id:11, name:"Dhairy Patel",           dob:"30/01/2011",year:"Year 10",  parent:"Shankarlal Patel",           parentTel:"07448442196",    parentEmail:"dhairyp037@gmail.com",              emergency:"",emergencyTel:"",medical:""},
+  {id:12, name:"Ethan Tauro",            dob:"16/02/2013",year:"Year 8",   parent:"Natasha Tauro",              parentTel:"07794135667",    parentEmail:"natashalobo2310@gmail.com",          emergency:"",emergencyTel:"",medical:""},
+  {id:13, name:"Freddie Thompson",       dob:"13/06/2012",year:"Year 9",   parent:"Steve Thompson",             parentTel:"07703009359",    parentEmail:"stevegthompson@me.com",             emergency:"",emergencyTel:"",medical:""},
+  {id:14, name:"Hardhik Pulluru",        dob:"15/09/2017",year:"Year 3",   parent:"Yeshwanth Pulluru",          parentTel:"07887175143",    parentEmail:"yeshpulluru@gmail.com",             emergency:"",emergencyTel:"",medical:""},
+  {id:15, name:"Heet Sandipkumar Patel", dob:"07/05/2014",year:"Year 7",   parent:"Sandipkumar Suryakant Patel",parentTel:"07393107752",    parentEmail:"sandip.patel92@yahoo.com",          emergency:"",emergencyTel:"",medical:""},
+  {id:16, name:"Jainil",                 dob:"27/10/2017",year:"Year 3",   parent:"Chandresh",                  parentTel:"07888346645",    parentEmail:"Chandreshgoklani@gmail.com",         emergency:"",emergencyTel:"",medical:""},
+  {id:17, name:"Jaysheel Shah",          dob:"26/11/2014",year:"Year 6",   parent:"Sweta Soneji",               parentTel:"07947260450",    parentEmail:"Swetasoneji@gmail.com",             emergency:"",emergencyTel:"",medical:""},
+  {id:18, name:"Jemish Jitendra",        dob:"03/12/2011",year:"Year 9",   parent:"Jitendra Quessava",          parentTel:"+44 7928 762368",parentEmail:"jquessava@gmail.com",               emergency:"",emergencyTel:"",medical:""},
+  {id:19, name:"Muhammad Hussain",       dob:"21/07/2019",year:"Year 2",   parent:"Asif Husaain",               parentTel:"07340665770",    parentEmail:"asif12389@gmail.com",               emergency:"",emergencyTel:"",medical:"Medical Condition (details not specified) — please check with parent before session"},
+  {id:20, name:"Muhammad Rayaan Qayyum", dob:"07/06/2013",year:"Year 8",   parent:"Muhammad Samar Qayyum",      parentTel:"07857126707",    parentEmail:"Samar_duaa@yahoo.com",              emergency:"",emergencyTel:"",medical:""},
+  {id:21, name:"Muhaymin Mohammed",      dob:"15/04/2017",year:"Year 4",   parent:"Shahzeb Mohammed",           parentTel:"07884187040",    parentEmail:"shahzeb.mohammed@gmail.com",         emergency:"",emergencyTel:"",medical:""},
+  {id:22, name:"Oscar Remedios",         dob:"22/05/2020",year:"Year 1",   parent:"Jason Remedios",             parentTel:"07979149663",    parentEmail:"jason.remedios99@gmail.com",         emergency:"",emergencyTel:"",medical:"Food Allergy — please check with parent before session"},
+  {id:23, name:"Sanaaya Shah",           dob:"16/08/2019",year:"Year 2",   parent:"Sweta Soneji",               parentTel:"07947260450",    parentEmail:"Swetasoneji@gmail.com",             emergency:"",emergencyTel:"",medical:""},
+  {id:24, name:"Shivam Shah",            dob:"24/04/2016",year:"Year 5",   parent:"Pranav Shah",                parentTel:"07898194688",    parentEmail:"pranav143shah@gmail.com",           emergency:"",emergencyTel:"",medical:""},
+  {id:25, name:"Shivansh Patel",         dob:"30/10/2017",year:"Year 8",   parent:"Himalkumar Patel",           parentTel:"07543622666",    parentEmail:"himalnote3@gmail.com",              emergency:"",emergencyTel:"",medical:""},
+  {id:26, name:"Shubhman Gosalia",       dob:"12/03/2021",year:"Reception",parent:"Bijal Shah",                 parentTel:"07341847076",    parentEmail:"bijalsh25@gmail.com",               emergency:"",emergencyTel:"",medical:""},
+  {id:27, name:"Sneh Patel",             dob:"06/10/2014",year:"Year 6",   parent:"Bhavikkumar Patel",          parentTel:"07949728754",    parentEmail:"bhavikpatel76802@yahoo.com",         emergency:"",emergencyTel:"",medical:""},
+  {id:28, name:"Syed Mustafa",           dob:"20/09/2017",year:"Year 3",   parent:"Fahim Ali",                  parentTel:"07897279575",    parentEmail:"fahim_gravity@hotmail.com",          emergency:"",emergencyTel:"",medical:""},
+  {id:29, name:"Tanay Varma",            dob:"15/02/2014",year:"Year 6",   parent:"Ruchi Varma",                parentTel:"07769324257",    parentEmail:"ruchilodha@yahoo.com",              emergency:"",emergencyTel:"",medical:"Medical Condition, Autism, ADHD — please check with parent before session"},
+  {id:30, name:"Tejashwin Sathishkumar",dob:"19/01/2020",year:"Year 1",   parent:"Sathishkumar Munirathinam",  parentTel:"07909574700",    parentEmail:"Sathishkumar.kumaran@gmail.com",     emergency:"",emergencyTel:"",medical:""},
+  {id:31, name:"Vedansh Parmar",         dob:"08/02/2014",year:"Year 7",   parent:"Tushar Parmar",              parentTel:"07407850463",    parentEmail:"Parmartushars@gmail.com",           emergency:"",emergencyTel:"",medical:""},
+  {id:32, name:"Vishnu Karthikeyan",     dob:"03/08/2015",year:"Year 6",   parent:"Karthikeyan Gurumoorthy",    parentTel:"07825656292",    parentEmail:"karthikeyan.gurumoorthy@gmail.com",  emergency:"",emergencyTel:"",medical:"Right-sided Microtia — can play cricket well (noted by parent)"},
+  {id:33, name:"Vivan Pandya",           dob:"08/07/2018",year:"Year 3",   parent:"Khushboo Pandya",            parentTel:"07553 342075",   parentEmail:"Khushboopandya90@gmail.com",         emergency:"",emergencyTel:"",medical:""},
+  {id:34, name:"Viyaan Shah",            dob:"01/03/2020",year:"Year 1",   parent:"Pranav Shah",                parentTel:"07898194688",    parentEmail:"pranav143shah@gmail.com",           emergency:"",emergencyTel:"",medical:""},
 ];
 // %%PLAYERS_END%%
 
@@ -262,7 +337,12 @@ SESSIONS.forEach((s,i) => {
 
 buildTabs(); renderList();
 
-function changeSession() { currentSession = parseInt(sel.value); expandedCards.clear(); renderList(); }
+function changeSession() {
+  currentSession = parseInt(sel.value);
+  expandedCards.clear();
+  renderList();
+  syncFullSessionToFirebase(currentSession);
+}
 
 function buildTabs() {
   const groups = ['All', ...YEAR_ORDER.filter(y => PLAYERS.some(p => p.year === y))];
@@ -325,7 +405,16 @@ function renderList() {
 
 function toggleExpand(id) { expandedCards.has(id)?expandedCards.delete(id):expandedCards.add(id); renderList(); }
 
-function mark(id, status) { attendance[currentSession][id] = status; renderList(); showToast(status==='present'?'✅ Marked present':'⚪ Marked absent'); }
+function mark(id, status) {
+  attendance[currentSession][id] = status;
+  // Find player name for Firebase record
+  const player = PLAYERS.find(p => p.id === id) || walkins.find(w => w.id === id);
+  const name = player ? player.name : `Player ${id}`;
+  const isWalkin = walkins.some(w => w.id === id);
+  saveToFirebase(currentSession, id, status, name, isWalkin, isWalkin ? player : null);
+  renderList();
+  showToast(status==='present'?'✅ Marked present':'⚪ Marked absent');
+}
 
 function updateStats() {
   const sess = currentSession;
@@ -360,6 +449,7 @@ function addWalkin() {
   attendance[currentSession][id] = 'present';
   ['wi-name','wi-dob','wi-year','wi-parent','wi-parent-tel','wi-parent-email','wi-emergency-name','wi-emergency-tel','wi-medical']
     .forEach(f => document.getElementById(f).value = '');
+  saveToFirebase(currentSession, id, 'present', name, true, walkins[walkins.length-1]);
   renderList();
   showToast('✅ Walk-in added & marked present');
 }
@@ -381,6 +471,7 @@ function resetSession() {
   PLAYERS.forEach(p => attendance[currentSession][p.id] = 'absent');
   walkins = walkins.filter(w => w.sessionIdx !== currentSession);
   expandedCards.clear(); renderList();
+  syncFullSessionToFirebase(currentSession);
   showToast('🔄 Session reset');
 }
 
